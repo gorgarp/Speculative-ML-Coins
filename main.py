@@ -21,7 +21,7 @@ def download_data():
         symbol = coin["symbol"]
         # check if the coin have trading pair in the exchange
         if 'exchange' in coin:
-            exchange = coin["Kucoin"]
+            exchange = "kucoin"
             # get the trading pair
             trading_pair = symbol + 'btc'
             url = f"https://api.cryptowat.ch/markets/{exchange}/{trading_pair}/ohlc"
