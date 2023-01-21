@@ -20,11 +20,14 @@ def download_data():
     # Loop through each coin to download historical price data
     for coin in coins:
         symbol = coin["symbol"]
-        # get the trading pair
-        trading_pair = symbol + 'usd'
-        url = f"https://api.cryptowat.ch/markets/{exchange}/{trading_pair}/ohlc"
-        response = requests.get(url)
-        data = json.loads(response.text)
+        # check if the coin have trading pair in the exchange
+        if 'exchange' in coin:
+            exchange = coin["exchange"]
+            # get the trading pair
+            trading_pair = symbol + 'usd'
+            url = f"https://api.cryptowat.ch/markets/{exchange}/{trading_pair}/ohlc"
+            response = requests.get(url)
+            data = json.loads(response.text)
         # Extract historical price data
         df = pd.read_json(json.dumps(data['result']['86400']))
         df.columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volume_quote']
