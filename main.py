@@ -2,7 +2,6 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from datetime import datetime
 import requests
-import json
 
 # list of exchange we want to include
 exchanges = ["Coinbase","Kucoin","Tradeogre"]
@@ -17,7 +16,7 @@ headers = {
     "X-CMC_PRO_API_KEY": "YOUR_API_KEY"
 }
 response = requests.get(endpoint, headers=headers, params=params)
-data = json.loads(response.text)
+data = response.json()
 df = pd.DataFrame(data["data"])
 df = df[["name", "quote.USD.close", "quote.USD.volume_24h","market_data.exchanges"]]
 df = df[df["market_data.exchanges"].apply(lambda x: any(i['name'] in exchanges for i in x))]
