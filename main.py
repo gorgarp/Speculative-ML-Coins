@@ -7,9 +7,9 @@ import requests
 exchanges = ["Coinbase","Kucoin","Tradeogre"]
 
 # download all historical data from CoinMarketCap API
-endpoint = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/ohlcv/historical"
+endpoint = "https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest"
 params = {
-    "interval": "1d",
+    "start": "1",
     "convert": "USD"
 }
 headers = {
@@ -17,10 +17,12 @@ headers = {
 }
 response = requests.get(endpoint, headers=headers, params=params)
 data = response.json()
+
+# Extract the data
 df = pd.DataFrame(data["data"])
-df = df[["name", "quote.USD.close", "quote.USD.volume_24h","market_data.exchanges"]]
-df = df[df["market_data.exchanges"].apply(lambda x: any(i['name'] in exchanges for i in x))]
-df.columns = ["name", "close", "volume","exchanges"]
+df = df[["name", "quote.USD.price", "quote.USD.volume_24h","exchanges"]]
+df = df[df["exchanges"].apply(lambda x: any(i['name'] in exchanges for i in x))]
+df.columns = ["name", "price", "volume","exchanges"]
 
 # save the data to file
 df.to_csv("historical_data.csv", index=False)
@@ -36,20 +38,18 @@ for coin in df["name"].unique():
     # Create a new DataFrame for the current coin
     coin_df = df[df["name"] == coin]
 
-    # Create the X and y arrays for the model
-    X = coin_df[["close", "volume"]].values
-    y = coin_df["close"].pct_change().shift(-1).fillna(0)
+    # Create the X and y
+    X = coin_df[["volume"]]
+    y = coin_df["price"]
 
     # Split the data into training and testing sets
-    split_index = int(coin_df.shape[0] * 0.8)
-    X_train, X_test = X[:split_index], X[split_index:]
-    y_train, y_test = y[:split_index], y[split_index:]
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Train the model
+    # Train a random forest regression model on the data
     model = RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
 
-       # Make predictions
+    # Make predictions
     y_pred = model.predict(X_test)
 
     # Calculate the accuracy of the model
