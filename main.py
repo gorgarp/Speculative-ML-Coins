@@ -28,11 +28,14 @@ def download_data():
             url = f"https://api.cryptowat.ch/markets/{exchange}/{trading_pair}/ohlc"
             response = requests.get(url)
             data = json.loads(response.text)
-        # Extract historical price data
-        df = pd.read_json(json.dumps(data['result']['86400']))
-        df.columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volume_quote']
-        # Save to file
-        df.to_csv(f"{symbol}_prices.csv")
+            # Extract historical price data
+            df = pd.read_json(json.dumps(data['result']['86400']))
+            df.columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volume_quote']
+            # Save to file
+            df.to_csv(f"{symbol}_prices.csv")
+        else:
+            print(f"Coin {symbol} doesn't have trading pair in the exchange.")
+
 
 # Function to persist data between runs
 def persist_data():
