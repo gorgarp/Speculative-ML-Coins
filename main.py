@@ -1,72 +1,113 @@
 import requests
+import json
 import pandas as pd
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestRegressor
 
-exchanges = ["Coinbase","Kucoin","Tradeogre"]
-headers = {
-    "X-CMC_PRO_API_KEY": "YOUR_API_KEY"
-}
-params = {
-    "convert":"USD"
-}
+# Function to download historical price data for all coins
+def download_data():
+    # Make API call
+    url = "https://api.cryptowat.ch/assets"
+    response = requests.get(url)
+    
+    # Parse JSON response
+    data = json.loads(response.text)
+    
+    # Extract list of coins
+    coins = data["result"]
+    
+    # Loop through each coin to download historical price data
+    for coin in coins:
+        symbol = coin["symbol"]
+        url = f"https://api.cryptowat.ch/markets/{symbol}/ohlc"
+        response = requests.get(url)
+        data = json.loads(response.text)
+        
+        # Extract historical price data
+        prices = data["result"]["86400"]
+        
+        # Convert to pandas DataFrame
+        df = pd.DataFrame(prices, columns=["timestamp", "open", "high", "low", "close", "volume", "volume_quote"])
+        
+        # Save to file
+        df.to_csv(f"{symbol}_prices.csv")
 
-# download all historical data from CoinMarketCap API
-response = requests.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/listings/latest", headers=headers, params=params)
-data = response.json()["data"]
+# Function to persist data between runs
+def persist_data():
+    # Load data from files and store in a variable
+    data = {}
+    for coin in coins:
+        symbol = coin["symbol"]
+        df = pd.read_csv(f"{symbol}_prices.csv")
+        data[symbol] = df
+    return data
 
-# Extract the data
-df = pd.DataFrame(data)
-df = df[["name", "symbol", "quotes.USD.price", "quotes.USD.volume_24h"]]
-df.columns = ["name", "symbol", "price", "volume"]
+# Function to download latest data each run
+def update_data(data):
+    # Loop through each coin to download latest data
+    for coin in coins:
+        symbol = coin["symbol"]
+        url = f"https://api.cryptowat.ch/markets/{symbol}/ohlc"
+        response = requests.get(url)
+        new_data = json.loads(response.text)
+        
+        # Extract latest price data
+        prices = new_data["result"]["86400"]
+        
+        # Convert to pandas DataFrame
+        new_df = pd.DataFrame(prices, columns=["timestamp", "open", "high", "low", "close", "volume", "volume_quote"])
+        
+        # Append new data to existing data
+        data[symbol] = data[symbol].append(new_df)
+    return data
 
-# filter the data to include only the coins listed on the specified exchanges
-response = requests.get("https://pro-api.coinmarketcap.com/v1/exchange/listings/latest", headers=headers)
-data = response.json()["data"]
-exchanges_df = pd.DataFrame(data)
-exchanges_df = exchanges_df[["name","slug"]]
-exchanges_df = exchanges_df[exchanges_df["name"].isin(exchanges)]
-exchanges_df = exchanges_df.rename(columns={'slug':'symbol'})
-df = pd.merge(df, exchanges_df, on='symbol')
+# Function to use machine learning to predict next day's closing price
+def predict_price(df):
+    # Prepare data for training
+    X = df[['open', 'high', 'low', 'volume', 'volume_quote']]
+    y = df['close']
 
-# save the data to file
-df.to_csv("historical_data.csv", index=False)
+# Split data into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
 
-# Load previous predictions from file
-try:
-    predictions_df = pd.read_csv("predictions.csv")
-except FileNotFoundError:
-    predictions_df = pd.DataFrame(columns=["coin", "predicted_return", "actual_return"])
+    # Train linear regression model
+    regressor = LinearRegression()
+    regressor.fit(X_train, y_train)
 
-# Loop through each coin in the DataFrame
-for coin in df["name"].unique():
-    # Create a new DataFrame for the current coin
-    coin_df = df[df["name"] == coin]
+    # Make predictions on test set
+    y_pred = regressor.predict(X_test)
 
-    # Create the X and y
-    X = coin_df[["volume"]]
-    y = coin_df["price"]
+    # Evaluate model performance
+    mae = mean_absolute_error(y_test, y_pred)
+    print(f"Mean Absolute Error: {mae}")
 
-    # Split the data into training and testing sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    # Make predictions on latest data
+    latest_data = X.tail(1)
+    prediction = regressor.predict(latest_data)
+    return prediction
 
-    # Train a random forest regression model on the data
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
-    model.fit(X_train, y_train)
 
-    # Make predictions
-    y_pred = model.predict(X_test)
+# Function to look back at predictions versus actual performance
+def evaluate_performance(data, predictions):
+    # Compare predictions to actual performance
+    for symbol in data.keys():
+        df = data[symbol]
+        prediction = predictions[symbol]
+        actual_performance = df["close"].tail(1).values[0]
+        error = abs(prediction - actual_performance)
+        print(f"Coin: {symbol}, Prediction: {prediction}, Actual: {actual_performance}, Error: {error}")
 
-    # Calculate the accuracy of the model
-    coin_predictions_df = pd.DataFrame({"coin": coin,
-                                       "predicted_return": y_pred,
-                                       "actual_return": y_test})
-    predictions_df = predictions_df.append(coin_predictions_df, ignore_index=True)
+# Main function to run the script
+def main():
+    download_data()
+    data = persist_data()
+    data = update_data(data)
+    predictions = {}
+    for symbol in data.keys():
+        df = data[symbol]
+        predictions[symbol] = predict_price(df)
+    evaluate_performance(data, predictions)
 
-    # Check if any predictions have a return greater than 1000%
-    predictions_df["predicted_return"] = predictions_df["predicted_return"].apply(lambda x: x / y_test.mean() - 1)
-    predictions_df["actual_return"] = predictions_df["actual_return"].apply(lambda x: x / y_test.mean() - 1)
-    predictions_df = predictions_df[predictions_df["predicted_return"] > 0.1]
-
-    # Save predictions to file
-    predictions_df.to_csv("predictions.csv", index=False)
+if __name__ == "__main__":
+    main()
