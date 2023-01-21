@@ -109,4 +109,13 @@ def main():
     # Make predictions
     predictions = {}
     for symbol in data.keys():
+    df = data[symbol]
+        y_pred = predict_price(df)
+        predictions[symbol] = y_pred
+    # Evaluate performance
+    evaluate_performance(data, predictions)
+
+# Call main function to run script
+if __name__ == "__main__":
+    main()
        
