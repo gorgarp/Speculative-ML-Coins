@@ -1,6 +1,8 @@
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from datetime import datetime
+import requests
+import json
 
 # list of exchange we want to include
 exchanges = ["Coinbase","Kucoin","Tradeogre"]
