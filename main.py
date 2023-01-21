@@ -58,6 +58,7 @@ for coin in df["name"].unique():
                                        "actual_return": y_test})
     predictions_df = predictions_df.append(coin_predictions_df, ignore_index=True)
 
+
     # Check if any predictions have a return greater than 1000%
     predictions_df["predicted_return"] = predictions_df["predicted_return"] * 100
     predictions_df["actual_return"] = predictions_df["actual_return"] * 100
