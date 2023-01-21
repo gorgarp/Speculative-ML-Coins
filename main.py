@@ -20,7 +20,6 @@ def download_data():
     # Loop through each coin to download historical price data
     for coin in coins:
         symbol = coin["symbol"]
-        exchange = coin["exchange"]
         # get the trading pair
         trading_pair = symbol + 'usd'
         url = f"https://api.cryptowat.ch/markets/{exchange}/{trading_pair}/ohlc"
