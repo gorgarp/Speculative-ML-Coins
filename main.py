@@ -23,7 +23,7 @@ def download_data():
         if 'exchange' in coin:
             exchange = coin["Kucoin"]
             # get the trading pair
-            trading_pair = symbol + 'usd'
+            trading_pair = symbol + 'usdt'
             url = f"https://api.cryptowat.ch/markets/{exchange}/{trading_pair}/ohlc"
             response = requests.get(url)
             data = json.loads(response.text)
