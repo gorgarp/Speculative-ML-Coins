@@ -109,7 +109,7 @@ def main():
     # Make predictions
     predictions = {}
     for symbol in data.keys():
-    df = data[symbol]
+        df = data[symbol]
         y_pred = predict_price(df)
         predictions[symbol] = y_pred
     # Evaluate performance
