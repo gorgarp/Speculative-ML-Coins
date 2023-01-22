@@ -39,10 +39,9 @@ for ticker in crypto_tickers:
     print(f"Predicted price for {ticker} in 30 days: {forecast_30_days['yhat'][-1]}")
     print(f"Predicted price for {ticker} in 90 days: {forecast_90_days['yhat'][-1]}")
     
-     crypto_data = crypto_data.append(forecast_7_days[['ds', 'yhat']], ignore_index=True)
-    crypto_data = crypto_data.append(forecast_30_days[['ds', 'yhat']], ignore_index=True)
-    crypto_data = crypto_data.append(forecast_90_days[['ds', 'yhat']], ignore_index=True)
-    
+crypto_data = pd.concat([crypto_data, forecast_7_days[['ds', 'yhat']]], ignore_index=True)
+crypto_data = pd.concat([crypto_data, forecast_30_days[['ds', 'yhat']]], ignore_index=True)
+crypto_data = pd.concat([crypto_data, forecast_90_days[['ds', 'yhat']]], ignore_index=True)
     # Compare the predictions to the actual values
     crypto_data['error'] = crypto_data['y'] - crypto_data['yhat']
     
