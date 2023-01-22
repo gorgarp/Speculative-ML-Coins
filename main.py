@@ -2,8 +2,11 @@ import yahoo_fin.stock_info as si
 import pandas as pd
 from sklearn.neural_network import MLPRegressor
 
-# Get list of all ticker symbols for cryptocurrencies
-crypto_tickers = si.ticker_search("cryptocurrency")
+# Get a list of all ticker symbols that match the keyword "crypto" or "coin"
+crypto_tickers = si.ticker_search("crypto") + si.ticker_search("coin")
+
+# Filter the list to only include ticker symbols that have historical data available
+crypto_tickers = [ticker for ticker in crypto_tickers if si.get_data(ticker, start_date="01/01/2018") is not None]
 
 # Create an empty DataFrame to store the data
 data = pd.DataFrame()
