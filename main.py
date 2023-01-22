@@ -1,121 +1,55 @@
-import requests
-import json
+import yahoo_fin.stock_info as si
 import pandas as pd
-import os
-from sklearn.linear_model import LinearRegression
+from fbprophet import Prophet
 
-# Function to download historical price data for all coins
-def download_data():
-    # Make API call
-    url = "https://api.cryptowat.ch/assets"
-    response = requests.get(url)
-    
-    # Parse JSON response
-    data = json.loads(response.text)
-    
-    # Extract list of coins
-    coins = data["result"]
-    
-    # Loop through each coin to download historical price data
-    for coin in coins:
-        symbol = coin["symbol"]
-        # check if the coin have trading pair in the exchange
-        if 'exchange' in coin:
-            exchange = "kucoin"
-            # get the trading pair
-            trading_pair = symbol + 'btc'
-            url = f"https://api.cryptowat.ch/markets/{exchange}/{trading_pair}/ohlc"
-            response = requests.get(url)
-            data = json.loads(response.text)
-            # Extract historical price data
-            df = pd.read_json(json.dumps(data['result']['86400']))
-            df.columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volume_quote']
-             # Save to file
-            df.to_csv(f"{symbol}_prices.csv")
-        else:
-            print(f"Coin {symbol} doesn't have trading pair in the exchange.")
-    return coins
-# Function to persist data between runs
-def persist_data(coins):
-    data = {}
-    for coin in coins:
-        symbol = coin["symbol"]
-        # check if the coin have trading pair in the exchange
-        if 'exchange' in coin:
-            if os.path.exists(f"{symbol}_prices.csv"):
-                df = pd.read_csv(f"{symbol}_prices.csv")
-                data[symbol] = df
-    return data
+# Get list of all ticker symbols for cryptocurrencies
+crypto_tickers = si.ticker_search("cryptocurrency")
 
-# Function to download latest data each run
-def update_data(data):
-    for symbol in data.keys():
-        df = data[symbol]
-        last_timestamp = df['timestamp'].iloc[-1]
-        url = f"https://api.cryptowat.ch/markets/{exchange}/{trading_pair}/ohlc?after={last_timestamp}"
-        response = requests.get(url)
-        new_data = json.loads(response.text)
-        new_df = pd.read_json(json.dumps(new_data['result']['86400']))
-        new_df.columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'volume_quote']
-        df = df.append(new_df)
-        df.to_csv(f"{symbol}_prices.csv", index=False)
-    return data
+# Create an empty DataFrame to store the data
+data = pd.DataFrame()
 
-# Function to use machine learning to predict next day's closing price
-def predict_price(df):
-    # Prepare data for training
-    X = df[['open', 'high', 'low', 'volume', 'volume_quote']]
-    y = df['close']
+for ticker in crypto_tickers:
+    try:
+        # Get historical data for the cryptocurrency
+        crypto_data = si.get_data(ticker, start_date = "01/01/2018")
+        
+        # Rename the columns
+        crypto_data.rename(columns={'close': 'y', 'date': 'ds'}, inplace=True)
 
-    # Split data into training and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        # Add the ticker symbol as a column in the data
+        crypto_data["ticker"] = ticker
 
-    # Train model
-    model = LinearRegression()
-    model.fit(X_train, y_train)
+        # Add the new data to the existing data
+        data = pd.concat([data, crypto_data])
+    # Initialize and fit the model
+    model = Prophet()
+    model.fit(crypto_data)
+    # Create DataFrames to hold the predictions for different time periods
+    future_7_days = model.make_future_dataframe(periods=7)
+    future_30_days = model.make_future_dataframe(periods=30)
+    future_90_days = model.make_future_dataframe(periods=90)
 
     # Make predictions
-    y_pred = model.predict(X_test)
+    forecast_7_days = model.predict(future_7_days)
+    forecast_30_days = model.predict(future_30_days)
+    forecast_90_days = model.predict(future_90_days)
 
-    # Evaluate performance
-    mse = mean_squared_error(y_test, y_pred)
-    rmse = sqrt(mse)
-
-    # Return predictions
-    return y_pred
-# Function to look back at predictions versus actual performance
-def evaluate_performance(data, predictions):
-    for symbol in data.keys():
-        df = data[symbol]
-        y_test = df['close'].tail(len(predictions))
-        actual_performance = (y_test.iloc[-1] - y_test.iloc[0]) / y_test.iloc[0] * 100
-        predicted_performance = (predictions[symbol][-1] - predictions[symbol][0]) / predictions[symbol][0] * 100
-        if actual_performance > 1000:
-            print(f"{symbol} actual performance: {actual_performance:.2f}%")
-            print(f"{symbol} predicted performance: {predicted_performance:.2f}%")
-            if actual_performance > predicted_performance:
-                print(f"{symbol} performance was better than predicted.")
-            else:
-                print(f"{symbol} performance was worse than predicted.")
-
-# Main function to run the script
-def main():
-    # Download data
-    coins = download_data()
-    # Persist data
-    data = persist_data(coins)
-    # Update data
-    data = update_data(data)
-    # Make predictions
-    predictions = {}
-    for symbol in data.keys():
-        df = data[symbol]
-        y_pred = predict_price(df)
-        predictions[symbol] = y_pred
-    # Evaluate performance
-    evaluate_performance(data, predictions)
-
-# Call main function to run script
-if __name__ == "__main__":
-    main()
-       
+    # Print the predictions
+    print(f"Predicted price for {ticker} in 7 days: {forecast_7_days['yhat'][-1]}")
+    print(f"Predicted price for {ticker} in 30 days: {forecast_30_days['yhat'][-1]}")
+    print(f"Predicted price for {ticker} in 90 days: {forecast_90_days['yhat'][-1]}")
+    
+     crypto_data = crypto_data.append(forecast_7_days[['ds', 'yhat']], ignore_index=True)
+    crypto_data = crypto_data.append(forecast_30_days[['ds', 'yhat']], ignore_index=True)
+    crypto_data = crypto_data.append(forecast_90_days[['ds', 'yhat']], ignore_index=True)
+    
+    # Compare the predictions to the actual values
+    crypto_data['error'] = crypto_data['y'] - crypto_data['yhat']
+    
+    # Update the model with the new data and the error
+    model.fit(crypto_data)
+except:
+    #if the ticker symbol is not found or the data is not available
+    print(f"{ticker} not found or data not available")
+    
+   data.to_csv("crypto_data.csv", index=False)
