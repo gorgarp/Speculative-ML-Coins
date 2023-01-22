@@ -52,4 +52,4 @@ for ticker in crypto_tickers:
         print(f"{ticker} not found or data not available")
 
 # Store the data in a csv file
-data.to_csv("crypto_data.csv",
+data.to_csv("crypto_data.csv", index = False)
