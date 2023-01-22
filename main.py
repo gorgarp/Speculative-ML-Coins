@@ -1,6 +1,6 @@
 import yahoo_fin.stock_info as si
 import pandas as pd
-from fbprophet import Prophet
+from sklearn.neural_network import MLPRegressor
 
 # Get list of all ticker symbols for cryptocurrencies
 crypto_tickers = si.ticker_search("cryptocurrency")
@@ -21,34 +21,35 @@ for ticker in crypto_tickers:
 
         # Add the new data to the existing data
         data = pd.concat([data, crypto_data])
-    # Initialize and fit the model
-    model = Prophet()
-    model.fit(crypto_data)
-    # Create DataFrames to hold the predictions for different time periods
-    future_7_days = model.make_future_dataframe(periods=7)
-    future_30_days = model.make_future_dataframe(periods=30)
-    future_90_days = model.make_future_dataframe(periods=90)
 
-    # Make predictions
-    forecast_7_days = model.predict(future_7_days)
-    forecast_30_days = model.predict(future_30_days)
-    forecast_90_days = model.predict(future_90_days)
+        # Split the data into training and testing sets
+        X_train = crypto_data[['ds']]
+        y_train = crypto_data[['y']]
+        X_test = crypto_data[['ds']]
+        y_test = crypto_data[['y']]
 
-    # Print the predictions
-    print(f"Predicted price for {ticker} in 7 days: {forecast_7_days['yhat'][-1]}")
-    print(f"Predicted price for {ticker} in 30 days: {forecast_30_days['yhat'][-1]}")
-    print(f"Predicted price for {ticker} in 90 days: {forecast_90_days['yhat'][-1]}")
-    
-crypto_data = pd.concat([crypto_data, forecast_7_days[['ds', 'yhat']]], ignore_index=True)
-crypto_data = pd.concat([crypto_data, forecast_30_days[['ds', 'yhat']]], ignore_index=True)
-crypto_data = pd.concat([crypto_data, forecast_90_days[['ds', 'yhat']]], ignore_index=True)
-    # Compare the predictions to the actual values
-    crypto_data['error'] = crypto_data['y'] - crypto_data['yhat']
-    
-    # Update the model with the new data and the error
-    model.fit(crypto_data)
-except:
-    #if the ticker symbol is not found or the data is not available
-    print(f"{ticker} not found or data not available")
-    
-   data.to_csv("crypto_data.csv", index=False)
+        # Initialize and fit the neural network model
+        model = MLPRegressor(hidden_layer_sizes=(100,100,100), max_iter=5000)
+        model.fit(X_train, y_train)
+
+        # Make predictions
+        predictions_7_days = model.predict(X_test + 7)
+        predictions_30_days = model.predict(X_test + 30)
+        predictions_90_days = model.predict(X_test + 90)
+
+        # Print the predictions
+        print(f"Predicted price for {ticker} in 7 days: {predictions_7_days[-1]}")
+        print(f"Predicted price for {ticker} in 30 days: {predictions_30_days[-1]}")
+        print(f"Predicted price for {ticker} in 90 days: {predictions_90_days[-1]}")
+        
+        # Compare the predictions to the actual values
+        error = predictions - y_test
+        # Update the model with the new data and the error
+        model.fit(X_train, y_train, error)
+
+    except:
+        #if the ticker symbol is not found or the data is not available
+        print(f"{ticker} not found or data not available")
+
+# Store the data in a csv file
+data.to_csv("crypto_data.csv",
